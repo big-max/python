@@ -1,0 +1,36 @@
+---
+- name: Have health check for MQ servers
+  hosts: all
+  gather_facts: false
+  strategy: linear
+  vars:
+      date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
+  tasks:
+    - name: check if python module psutil exists
+      command: python -c "import psutil"
+      register: check_output
+      ignore_errors: true
+    - name: copy python module to target system
+      unarchive: src=/opt/tornado/tools/psutil-4.3.0.tar.gz dest=/tmp copy=yes
+      when: check_output.stderr.find('ImportError') != -1
+    - name: install python module
+      command: python setup.py install chdir=/tmp/psutil-4.3.0
+      when: check_output.stderr.find('ImportError') != -1
+    - name: upload mqconfig script
+      copy: src=/opt/tornado/tools/mqconfig dest=/tmp/mqconfig mode="a+x"
+    - name: retrieve os summary health check data
+      mod_OS_Healthcheck:
+    - name: retrieve os detail health check data
+      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ date }}{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily == '2'
+    - name: retrieve os detail health check data
+      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily != '2'
+    - name: retrieve mq summary health check data
+      mod_MQ_Healthcheck:
+    - name: retrieve mq detail health check data
+      fetch: src=/tmp/mqhc_detail.out dest=/scripts/healthcheck/mqhc/{{ date }}{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily == '2'
+    - name: retrieve mq detail health check data
+      fetch: src=/tmp/mqhc_detail.out dest=/scripts/healthcheck/mqhc/{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily != '2'

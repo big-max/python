@@ -1,0 +1,87 @@
+
+- name: Configure Install List
+  hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Add hosts to the group named target_hosts
+      add_host: >
+        name="{{ item.0 }}" groups=target_hosts ansible_ssh_host="{{ item.1 }}"
+      with_together:
+        - "{{ hostname_list }}"
+        - "{{ ip_list }}"
+
+- name: Install OS Agent
+  hosts: target_hosts
+  tasks:
+    - name: create media directory
+      file: path="{{ downloadpath }}/{{ itm_version }}/fix" state=directory owner=root group=root mode=0755
+    - name: copy base media file
+      get_url: 
+        url: "ftp://{{ ftp_user }}:{{ ftp_password }}@{{ ftp_server }}/itm/os/{{ itm_version }}/{{ itm_binary }}"
+        dest: "{{ downloadpath }}/{{ itm_version }}/{{ itm_binary }}"   
+    - name: copy fix media file
+      get_url: 
+        url: "ftp://{{ ftp_user }}:{{ ftp_password }}@{{ ftp_server }}/itm/os/{{ itm_version }}/{{ itm_fp }}"  
+        dest: "{{ downloadpath }}/{{ itm_version }}/fix/{{ itm_fp }}"  
+      when: itm_fp != '-' 
+    - name: Decompress base media
+      shell: gzip -d -f "{{ downloadpath }}/{{ itm_version }}/{{ itm_binary }}"
+    - name: Unarchive base media
+      shell: tar -xf "{{ downloadpath }}/{{ itm_version }}"/*.tar -C "{{ downloadpath }}/{{ itm_version }}"
+    - name: Decompress fix media
+      shell: gzip -d -f "{{ downloadpath }}/{{ itm_version }}/fix/{{ itm_fp }}"
+      when: itm_fp != '-'
+    - name: Unarchive fix media
+      shell: tar -xf "{{ downloadpath }}/{{ itm_version }}"/fix/*.tar -C "{{ downloadpath }}/{{ itm_version }}/fix"
+      when: itm_fp != '-'    
+    - name: copy silent install file for Unix     
+      template: src="silent_install_ux.txt" dest="{{ downloadpath }}/{{ itm_version }}/silent_install_ux.txt"
+      when: ansible_system != 'Linux'
+    - name: copy silent install file for Linux
+      template: src="silent_install_lz.txt" dest="{{ downloadpath }}/{{ itm_version }}/silent_install_lz.txt"
+      when: ansible_system == 'Linux'
+    - name: copy silent config file for Unix
+      template: src="silent_config_ux.txt" dest="{{ downloadpath }}/{{ itm_version }}/silent_config_ux.txt"
+      when: ansible_system != 'Linux'
+    - name: copy silent config file for Linux
+      template: src="silent_config_lz.txt" dest="{{ downloadpath }}/{{ itm_version }}/silent_config_lz.txt"
+      when: ansible_system == 'Linux'
+    - name: install agent base for Unix
+      command: "{{ downloadpath }}/{{ itm_version }}/install.sh -h {{ itm_inst_path }} -p {{ downloadpath }}/{{ itm_version }}/silent_install_ux.txt"
+      when: ansible_system != 'Linux'
+    - name: install agent base for Linux
+      command: "{{ downloadpath }}/{{ itm_version }}/install.sh -h {{ itm_inst_path }} -p {{ downloadpath }}/{{ itm_version }}/silent_install_lz.txt"
+      when: ansible_system == 'Linux'
+    - name: install agent fix for Unix
+      shell: "{{ downloadpath }}/{{ itm_version }}/fix/*/install.sh -h {{ itm_inst_path }} -p {{ downloadpath }}/{{ itm_version }}/silent_install_ux.txt"
+      when: ansible_system != 'Linux' and itm_fp != '-'
+    - name: install agent fix for Linux
+      shell: "{{ downloadpath }}/{{ itm_version }}/fix/*/install.sh -h {{ itm_inst_path }} -p {{ downloadpath }}/{{ itm_version }}/silent_install_lz.txt"
+      when: ansible_system == 'Linux' and itm_fp != '-'
+    - name: add monigrp group      
+      group: name="{{ itm_manager_group }}"
+    - name: add monitor user
+      user: name="{{ itm_manager_user }}" groups="{{ itm_manager_group }}" password={{ itm_manager_user }}
+    - name: change own
+      file: path="{{ itm_inst_path }}" state=directory recurse=yes owner="{{ itm_manager_user }}" group="{{ itm_manager_group }}"
+
+- name: Config OS Agent
+  hosts: target_hosts
+  become_user: "{{ itm_manager_user }}"
+  become: yes
+  become_method: su
+  tasks:
+    - name: config agent for Unix
+      command: "{{ itm_inst_path }}/bin/itmcmd config -A -p {{ downloadpath }}/{{ itm_version }}/silent_config_ux.txt {{ itm_code }}"
+      when: ansible_system != 'Linux'
+    - name: config agent for Linux
+      command: "{{ itm_inst_path }}/bin/itmcmd config -A -p {{ downloadpath }}/{{ itm_version }}/silent_config_lz.txt {{ itm_code }}"
+      when: ansible_system == 'Linux'
+    - name: start agent
+      command: "{{ itm_inst_path }}/bin/itmcmd agent start {{ itm_code }}"
+
+- name: Update Run Script
+  hosts: target_hosts
+  tasks:
+    - name: update auto run
+      command: "{{ itm_inst_path }}/bin/UpdateAutoRun.sh"

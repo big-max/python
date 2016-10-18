@@ -1,0 +1,11 @@
+--- 
+- name: Have basic information for MQ servers
+  hosts: all
+  gather_facts: true
+  strategy: linear
+  tasks:
+    - name: retrieve mq generic data
+      shell: su - "mqm" -c "/opt/mqm/bin/runmqras -section default -qmlist {{ target }} -outputdir /tmp"
+    - name: retrieve mq generic data from client
+      fetch: src=/tmp/runmqras-{{ inventory_hostname }}.zip dest=/scripts/logcatch/{{ product }}/{{ task_timestamp }}/{{ ip }}-{{ product }}.zip flat=yes
+

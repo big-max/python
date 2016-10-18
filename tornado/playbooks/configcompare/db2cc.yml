@@ -1,0 +1,10 @@
+---
+- name: Sync instance configuration for DB2 Instance
+  hosts: all
+  gather_facts: false
+  strategy: linear
+  tasks:
+    - name: retrieve DB2 configCompare summary data
+      mod_DB2_Sync:
+
+

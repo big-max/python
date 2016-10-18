@@ -1,0 +1,127 @@
+--- 
+- name: Configure ansible inventory
+  hosts: localhost
+  gather_facts: False
+  tasks:
+     - name: Add hosts to the group named target_hosts
+       add_host: name="{{ item.0 }}" groups=target_hosts ansible_host="{{ item.1 }}" ipaddr="{{ item.1 }}" 
+       with_together: 
+         - "{{ hostname_list[0] }}"
+         - "{{ ip_list[0] }}"
+
+- name: Prepare DB2 Environment 
+  hosts: target_hosts
+  gather_facts: True
+  strategy: linear
+  tags:
+    - install  
+  tasks:    
+   - name: Update the hostname of target servers with aix   
+     mod_chhostname: name="{{ hostname_list[0] }}"  
+     when: ansible_distribution == 'AIX'
+   - name: Update the hostname of target servers  with non aix
+     hostname: name="{{ hostname_list[0] }}"
+     when: ansible_distribution != 'AIX'
+   - name: Create temp download directory
+     file: path="/{{ downloadpath }}/{{ db2_version }}" state=directory mode=755
+   - name: Add hostname to the file /etc/hosts
+     lineinfile: dest=/etc/hosts regexp='^{{ item.0 }}(\s+){{ item.1 }}(\s+)'  line="{{ item.0 }}        {{ item.1 }}" state=present backup=yes
+     with_together: 
+       - "{{ ip_list[0] }}"
+       - "{{ hostname_list[0] }}"
+   - name: Configure ulimit for installation user
+     command: chuser fsize=-1 root
+     when: ansible_distribution == 'AIX'
+   - name: Download DB2 binary files
+     get_url: 
+       url: "ftp://{{ ftp_user }}:{{ ftp_password }}@{{ ftp_server }}/db2/{{ db2_version }}/{{ db2_binary }}"
+       dest: "{{ downloadpath }}/{{ db2_version }}/{{ db2_binary }}"
+       mode: 0755
+       timeout: 100
+   - name: Download db2 license files
+     get_url: 
+       url: "ftp://{{ ftp_user }}:{{ ftp_password }}@{{ ftp_server }}/db2/{{ db2_version }}/db2ese_c.lic"
+       dest: "/{{ downloadpath }}/{{ db2_version}}/db2ese_c.lic"
+       timeout: 100
+   - name: Decompress DB2 binary file
+     shell: gzip -d -f "/{{ downloadpath }}/{{ db2_version }}/{{ db2_binary }}"
+   - name: Unarchive DB2 binary file
+     shell: cd "/{{ downloadpath }}/{{ db2_version }}";tar -xf *.tar
+   - name: Create DB2 user group 
+     group: name="{{ item }}" state=present
+     with_items:
+       - "{{ db2_db2insgrp }}"
+       - "{{ db2_db2fengrp }}"
+   - name: Create DB2 user
+     user: name="{{ item.name }}" group="{{ item.group }}" state=present
+     with_items:
+         - { name: '{{ db2_db2insusr }}',group: '{{ db2_db2insgrp }}' }
+         - { name: '{{ db2_db2fenusr }}',group: '{{ db2_db2fengrp }}' }
+#   - name: Make file system
+#     mod_db2_mkfs: pv="{{ item.pv }}" vg="{{ item.vg }}" fs="{{ item.fs }}" ppsize="{{ item.ppsize }}"
+#     with_items:
+#         - { pv: '{{ db2_data_pv }}', vg: 'datavg', fs: '{{ db2_dbdatapath }}', ppsize: '{{ db2_ppsize }}'}
+#         - { pv: '{{ db2_log_pv }}', vg: 'logvg', fs: '{{ db2_db2log }}', ppsize: '{{ db2_ppsize }}'}
+#         - { pv: '{{ db2_archlog_pv }}', vg: 'archlogvg', fs: '{{ db2_logarchpath }}', ppsize: '{{ db2_ppsize }}'}
+#     when: ansible_distribution == "AIX"
+   - name: Create DB2 path
+     file: path="{{ item }}" state=directory owner="{{ db2_db2insusr }}" group="{{ db2_db2insgrp }}" mode=755
+     with_items:
+        - "{{ db2_dbpath }}"
+        - "{{ db2_dbdatapath }}"
+        - "{{ db2_db2log }}"
+        - "{{ db2_logarchpath }}"
+                              
+- name: Install DB2 environment
+  hosts: target_hosts
+  tasks:
+   - name: Install DB2 binary with non 10 fp 5
+     shell: /"{{ downloadpath }}/{{ db2_version }}"/server*/db2_install -b "{{ db2_db2base }}" -p ese -n -f NOTSAMP
+     when:  db2_version  != "10.5"
+   - name: Install DB2 binary with 10 fp 5
+     shell: /"{{ downloadpath }}/{{ db2_version }}"/server*/db2_install -b "{{ db2_db2base }}" -p  server -n -f NOTSAMP
+     when:  db2_version  == "10.5"
+   - name: Create DB2 instance
+     shell: /"{{ db2_db2base }}"/instance/db2icrt -u "{{ db2_db2fenusr }}" "{{ db2_db2insusr }}"
+   - name: start db2
+     shell: su - "{{ db2_db2insusr }}" -c "db2start"
+                                        
+- name: Config DB2 environment 
+  hosts: target_hosts 
+  tasks:    
+   - name: register license
+     shell: su - "{{ db2_db2insusr }}" -c 'db2licm -a "{{ downloadpath }}/{{ db2_version }}/"db2ese_c.lic'
+   - name: Set db2set value
+     shell: su - "{{ db2_db2insusr }}" -c 'db2set "{{ item.name }}"="{{ item.value }}" '
+     with_items:
+       - { name: DB2COMM,value: '{{ db2_db2comm }}' }
+       - { name: DB2CODEPAGE,value: '{{ db2_db2codepage }}'}
+     when: db2_db2codepage == "1386"
+   - name: Set db2set value when codepage is utf8
+     shell: su - "{{ db2_db2insusr }}" -c 'db2set "{{ item.name }}"="{{ item.value }}" '
+     with_items:
+       - { name: DB2COMM,value: '{{ db2_db2comm }}' }
+     when: db2_db2codepage != "1386"
+   - name: Update dbm cfg 
+     shell: su - "{{ db2_db2insusr }}" -c 'db2 update dbm cfg using "{{ item.name }}" "{{ item.value }}" '
+     with_items:
+       - { name:  SVCENAME,value: '{{ db2_svcename }}'}
+   - name: Create db 
+     shell: su -  "{{ db2_db2insusr }}" -c 'db2 create db "{{ db2_dbname }}" on "{{ db2_dbdatapath }}" dbpath on "{{ db2_dbpath }}"  using codeset "{{ db2_codeset }}" TERRITORY CN pagesize "{{ db2_pagesize }}" K'
+   - name: Update db cfg 
+     shell: su - "{{ db2_db2insusr }}" -c 'db2 update db cfg for "{{ db2_dbname }}" using "{{ item.name }}" "{{ item.value }}"'
+     with_items:
+        - { name: LOCKTIMEOUT,value: '{{ db2_locktimeout }}'}
+        - { name: LOGPRIMARY,value: '{{ db2_logprimary }}'}
+        - { name: LOGSECOND,value: '{{ db2_logsecond }}'}
+        - { name: SOFTMAX,value: '{{ db2_softmax }}'}
+        - { name: TRACKMOD,value: '{{ db2_trackmod }}'}
+        - { name: NEWLOGPATH,value: '{{ db2_db2log }}'}
+        - { name: LOGARCHMETH1,value: "DISK:'{{ db2_logarchpath }}'"}
+        - { name: LOGFILSIZ,value: '{{ db2_logfilesize }}'}
+   - name: restart instance
+     shell: su - "{{ db2_db2insusr }}" -c 'db2stop force;db2start'
+   - name: backup db 
+     shell: su - "{{ db2_db2insusr }}" -c 'db2 backup db "{{ db2_dbname }}" to /dev/null'
+   - name: activate db 
+     shell: su - "{{ db2_db2insusr }}" -c 'db2 activate  db "{{ db2_dbname }}" '

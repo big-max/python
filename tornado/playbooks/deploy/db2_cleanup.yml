@@ -1,0 +1,54 @@
+--- 
+- name: Configure ansible inventory
+  hosts: localhost
+  gather_facts: False
+  tasks:
+     - name: Add hosts to the group named target_hosts
+       add_host: name="{{ item.0 }}" groups=target_hosts ansible_host="{{ item.1 }}" ipaddr="{{ item.1 }}"
+       with_together:
+         - "{{ hostname_list }}"
+         - "{{ ip_list }}"
+- name: clean db2
+  hosts: target_hosts
+  tasks: 
+    - name: clean db2   
+      db2_clean:   
+         inst="{{ db2_db2insusr }}"
+         db="{{ db2_dbname }}"
+         base="{{ db2_db2base }}"
+         fenc="{{ db2_db2fenusr }}"
+         inst_group="{{ db2_db2insgrp }}"
+         fenc_group="{{ db2_db2fengrp }}"
+         version="{{ db2_version }}"
+         binpath="{{ downloadpath }}"
+         logpath="{{ db2_db2log }}"
+         archpath="{{ db2_logarchpath }}"
+         dbpath="{{ db2_dbpath }}"
+         datapath="{{ db2_dbdatapath }}"
+    - name: clean filesystem
+      rmfs: pv="{{ item.pv }}" vg="{{ item.vg }}" fs="{{ item.fs }}" 
+      with_items:
+         - { pv: '{{ db2_data_pv }}', vg: 'datavg', fs: '{{ db2_dbdatapath }}'}
+         - { pv: '{{ db2_log_pv }}', vg: 'logvg', fs: '{{ db2_db2log }}'}
+         - { pv: '{{ db2_archlog_pv }}', vg: 'archlogvg', fs: '{{ db2_logarchpath }}'}
+      when: ansible_distribution == 'AIX'
+    - name: delete user
+      user: name="{{ item }}"  state=absent
+      with_items:
+          - '{{ db2_db2insusr }}'
+          - '{{ db2_db2fenusr }}'
+#    - name: delete group
+#      group: name="{{ item }}" state=absent
+#      with_items:
+#       - "{{ db2_db2insgrp }}"
+#       - "{{ db2_db2fengrp }}"
+    - name: delete path
+      file: path="{{ item }}" state=absent mode=755
+      with_items:
+        - "{{ db2_dbpath }}"
+        - "{{ db2_dbdatapath }}"
+        - "{{ db2_db2log }}"
+        - "{{ db2_logarchpath }}"
+        - "{{ downloadpath }}"
+        - "/home/{{ db2_db2insusr }}"
+        - "/home/{{ db2_db2fenusr }}"

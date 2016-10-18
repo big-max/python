@@ -1,0 +1,139 @@
+---
+#WAS_Cluster.yml: this playook supports Linux only
+- name: Configure ansible inventory
+  hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Add hosts to the group named target_hosts
+      add_host: >
+        name="{{ item.0 }}" groups=target_hosts ansible_host="{{ item.1 }}"
+        was_profile_type="{{ item.2 }}" was_profile_name="{{ item.3 }}"
+      with_together: 
+        - "{{ hostname_list }}"
+        - "{{ ip_list }}"
+        - "{{ was_profiletype_list }}"
+        - "{{ was_profilename_list }}"
+                      
+- name: Install Environment
+  hosts: target_hosts
+  gather_facts: false
+  strategy: linear
+  tags:
+    - install
+  tasks:
+    - name: Update the hostname of target servers
+      hostname: name="{{ inventory_hostname }}"
+    - name: Add hostname to the file /etc/hosts
+      lineinfile: dest=/etc/hosts regexp='^{{ item.0 }}.*{{ item.1 }}'  line="{{ item.0 }}        {{ item.1 }}" state=present backup=yes
+      with_together: 
+        - "{{ ip_list }}"
+        - "{{ hostname_list }}"
+    - name: Configure system ulimit parameters
+      ulimit: domain="{{ was_user }}" type='-' item="{{ item.key }}" value="{{ item.value }}"
+      with_dict: "{{ os_para_ulimit }}"
+    - name: Create temp download directory
+      file: path="{{ downloadpath }}/{{ was_version }}/{{ item }}" state=directory mode=0755
+      with_items:
+        - "im"
+        - "fp"
+    - name: Add the pre-defined user
+      user: name="{{ was_user }}" append=yes
+      when: was_user != 'root'
+    - name: Change directory mode
+      file: path="~{{ was_user }}" state=directory mode=0766
+      when: was_user != 'root'
+    - name: Download and unarchive IM files
+      unarchive: src="{{ item }}" dest="{{ downloadpath }}/{{ was_version }}/im" copy=yes creates=download_done
+      with_fileglob:
+        - "{{ softpath }}/{{ was_version }}/{{ was_im }}"
+    - name: Download and unarchive WAS binary files
+      unarchive: src="{{ item }}" dest="{{ downloadpath }}/{{ was_version }}" copy=yes creates=download_done
+      with_fileglob:
+        - "{{ softpath }}/{{ was_version }}/{{ was_binary }}"
+    - name: Download and unarchive WAS fixpack files
+      unarchive: src="{{ item }}" dest="{{ downloadpath }}/{{ was_version }}/fp" copy=yes creates=download_done
+      with_fileglob:
+        - "{{ softpath }}/{{ was_version }}/{{ was_fp }}" 
+      when: was_fp != '-'
+    - name: Install IM binary with non root user
+      become_user: "{{ was_user }}"
+      become: yes
+      become_method: su
+      shell: ./userinstc -acceptLicense chdir="{{ downloadpath }}/{{ was_version }}/im"
+      when: was_user != 'root'
+    - name: Install IM binary with root user
+      shell: ./installc -acceptLicense chdir="{{ downloadpath }}/{{ was_version }}/im"
+      when: was_user == 'root' 
+    - block: 
+      - name: Install WAS binary pretask1
+        lineinfile: >
+          dest="{{ was_im_path }}/eclipse/configuration/config.ini" regexp='disableOSPrereqChecking'  line="disableOSPrereqChecking=true"
+          state=present backup=yes create=yes
+      - name: Install WAS binary pretask2
+        shell: "{{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }}"
+        register: package
+      - name: Install WAS binary
+        shell: >
+          {{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ was_inst_path }}
+          -repositories {{ downloadpath }}/{{ was_version }} -acceptLicense
+      - name: Install WAS fixpack pretask1
+        shell: >
+          {{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }}/fp | grep 'ND.v'
+        register: package
+      - name: Install WAS fixpack if required
+        shell: >
+          {{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ was_inst_path }}
+          -repositories {{ downloadpath }}/{{ was_version }}/fp -acceptLicense 
+      when: was_fp != '-'
+      become: yes
+      become_user: "{{ was_user }}"
+      become_method: su
+                              
+- name: Build Environment
+  hosts: target_hosts
+  gather_facts: false
+  become_user: "{{ was_user }}"
+  become: yes
+  become_method: su
+  strategy: linear
+  tags:
+    - build
+  tasks:
+    - name: create WAS profiles with default profile
+      shell: >
+        {{ was_inst_path }}/bin/manageprofiles.sh -create -profileName {{ was_profile_name }} -profilePath {{ was_profile_path }}/{{ was_profile_name}}
+        -templatePath {{ was_inst_path }}/profileTemplates/{{ was_profile_type }} -hostName localhost
+        -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
+      when: was_profile_type == 'default'
+    - name: create WAS profiles with cell profile
+      shell: >
+        {{ was_inst_path }}/bin/manageprofiles.sh -create -profileName Dmgr01 -profilePath {{ was_profile_path }}/Dmgr01
+        -templatePath {{ was_inst_path }}/profileTemplates/cell/dmgr -hostName localhost
+        -nodeProfilePath {{ was_profile_path }}/{{ was_profile_name}}
+        -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
+        -cellName Default01Cell -nodeName Default01Node -appServerNodeName Default02Node;
+        {{ was_inst_path }}/bin/manageprofiles.sh -create -profileName {{ was_profile_name }} -profilePath {{ was_profile_path }}/{{ was_profile_name}}
+        -templatePath {{ was_inst_path }}/profileTemplates/cell/default -hostName localhost
+        -dmgrProfilePath {{ was_profile_path }}/Dmgr01
+        -portsFile {{ was_profile_path }}/Dmgr01/properties/portdef.props
+        -nodePortsFile {{ was_profile_path }}/Dmgr01/properties/nodeportdef.props
+        -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
+        -cellName Default01Cell -nodeName Default01Node -appServerNodeName Default02Node
+      when: was_profile_type == 'cell'
+                           
+- name: Restart Environment
+  hosts: target_hosts
+  gather_facts: false
+  become_user: "{{ was_user }}"
+  become: yes
+  become_method: su
+  strategy: linear
+  tags:
+    - restart
+  tasks:
+    - name: start WAS profile with cell profile 
+      shell: "{{ was_profile_path }}/Dmgr01/bin/startManager.sh;{{ was_profile_path }}/{{ was_profile_name }}/bin/startNode.sh"
+      when: was_profile_type == 'cell'
+    - name: add WAS Node
+      shell: ./addNode.sh {{ was_dmgr_ip }} 8879 -username {{ was_userid }} -password {{ was_password }} chdir={{ was_profile_path }}/{{ was_profile_name }}/bin
+      when: was_profile_type == 'default'

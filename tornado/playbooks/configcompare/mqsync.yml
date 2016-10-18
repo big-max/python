@@ -1,0 +1,12 @@
+---
+- name: Sync instance configuration for MQ QMGRs
+  hosts: all
+  gather_facts: false
+  strategy: linear
+  vars:
+      date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
+  tasks:
+    - name: retrieve MQ configCompare summary data
+      mod_MQ_Sync:
+
+
