@@ -95,7 +95,6 @@ class CallbackModule(CallbackBase):
     def v2_playbook_on_stats(self, stats):
         self.stats = stats
         self.ws_create_server()
-        pdb.set_trace()
         if self.stats.dark or self.stats.failures :
               self.playbook_final_status(self.playbookuuid,'failed')
               self.ws_send_status(self.playbookuuid,statuscode.get('failed'))
