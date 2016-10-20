@@ -195,31 +195,32 @@ def deploy_run_playbook(ymlName,jsonPath):
     retVal=subprocess.call([sendCommand],shell=True)
 
 @app.task
-def healthCheck_run_playbook(job_uuid,jobDetail_uuid,jobTarget,ymlName,task_timestamp,job_if_daily,job_scheduled_at):
+def healthCheck_run_playbook(job_uuid,jobDetail_uuid,jobTarget,ymlName,task_timestamp,job_if_daily,job_scheduled_at,userName):
     sendCommand='/usr/bin/ansible-playbook ' + getProjPath()+'/playbooks/healthcheck/'\
     +ymlName+".yml -i "+jobTarget + "  -e 'task_timestamp="+task_timestamp+" jobDetail_uuid="+jobDetail_uuid+" job_uuid="+job_uuid+" ymlName="+ymlName+" job_if_daily="+job_if_daily+"'"
     log().info(sendCommand)
     if job_if_daily == '0' or job_if_daily == '1': #run immediately
        retVal = subprocess.call([sendCommand],shell=True)       
     elif job_if_daily == '2':   #run every day
-       cron = CronTab(user='root')
+       #cron = CronTab(user='root')
+       cron = CronTab(user=userName)
        job=cron.new(sendCommand)
        job.setall(job_scheduled_at.split(':')[1],job_scheduled_at.split(':')[0],'*','*','*')
-       cron.write(user='root')
+       cron.write(user=userName)
        log().info('healthCheck::crotab has written to crontab file.')
 
 @app.task
-def configCompare_run_playbook(job_uuid,jobDetail_uuid,jobTarget,ymlName,task_timestamp,job_if_daily,job_scheduled_at):
+def configCompare_run_playbook(job_uuid,jobDetail_uuid,jobTarget,ymlName,task_timestamp,job_if_daily,job_scheduled_at,userName):
     sendCommand='/usr/bin/ansible-playbook ' + getProjPath()+'/playbooks/configcompare/'\
     +ymlName+".yml -i "+jobTarget + "  -e 'task_timestamp="+task_timestamp+" confCompDetail_uuid="+jobDetail_uuid+" confComp_uuid="+job_uuid+" ymlName="+ymlName+" confCompDetail_if_daily="+job_if_daily+"'"
     log().info(sendCommand)
     if job_if_daily == '0': #run immediately
        retVal = subprocess.call([sendCommand],shell=True)       
     elif job_if_daily == '2':   #run every day
-       cron = CronTab(user='root')
+       cron = CronTab(user=userName)
        job=cron.new(sendCommand)
        job.setall(job_scheduled_at.split(':')[1],job_scheduled_at.split(':')[0],'*','*','*')
-       cron.write(user='root')
+       cron.write(user=userName)
  
 @app.task
 def logCatch_run_playbook(_id,ip,product,instance,task_timestamp):

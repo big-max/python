@@ -43,7 +43,7 @@ class JobHandler(tornado.web.RequestHandler):
             
 
          
-     def run(self,jobuuid,jobType,jobTarget,jobSubmitedby,jobScheduleAt,job_lastrun_at,job_if_daily,job_groupOrIP):
+     def run(self,jobuuid,jobType,jobTarget,jobSubmitedby,jobScheduleAt,job_lastrun_at,job_if_daily,job_groupOrIP,userName):
          jobout={}
          jobout['job_uuid']=jobuuid
          jobout['job_type']=jobType
@@ -72,7 +72,7 @@ class JobHandler(tornado.web.RequestHandler):
             mongoOps.db().healthJobDetails.insert(jobDetailOut) 
             if job_if_daily == '0' or job_if_daily == '2':
                #tasks.healthCheck_run_playbook.delay(jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'hc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt)
-               tasks.healthCheck_run_playbook.apply_async(args=[jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'hc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt],queue='queue_healthCheck_run_playbook')
+               tasks.healthCheck_run_playbook.apply_async(args=[jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'hc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt,userName],queue='queue_healthCheck_run_playbook')
             if job_if_daily == '1':
                target_datetime=jobScheduleAt+":00"       
                betweenSeconds=self.calTime(target_datetime) 
@@ -103,8 +103,9 @@ class JobHandler(tornado.web.RequestHandler):
          job_if_daily=job_param['job_if_daily']
          job_runType = job_param['job_runType']
          job_groupOrIP = job_param['job_groupOrIP']
+         job_userName = job_param['userName']  # which user to execute
   #    if job_runType['status'] == 0 :   # 0   run immediately 1 run on time  2 run every datetime   
-         retVal = self.run(job_uuid,job_type,job_target,job_Submitedby,job_scheduled_at,job_lastrun_at,job_if_daily,job_groupOrIP)
+         retVal = self.run(job_uuid,job_type,job_target,job_Submitedby,job_scheduled_at,job_lastrun_at,job_if_daily,job_groupOrIP,job_userName)
          if retVal == True:
             self.write({'status':1,'msg':'success'})
             self.finish()
@@ -113,18 +114,22 @@ class JobHandler(tornado.web.RequestHandler):
             self.finish()
        
      def deleteJob(self,job_param):
-         cron = CronTab(user='root')   
-         job_uuid=job_param['job_uuid']               
-         jobuuids=job_uuid.split(',')
-         for jobuuid in jobuuids:    #delete more
-             mongoOps.db().healthJobs.remove({'job_uuid':jobuuid})
-             mongoOps.db().healthJobDetails.remove({'job_uuid':jobuuid})
-             mongoOps.db().healthJobRunResult.remove({'job_uuid':jobuuid})
-             jobs=cron.find_command(jobuuid)  #find a job which to be deleted if run immediately not do
-             for job in jobs:
-                 cron.remove(job)
-             cron.write(user='root')
-         self.write({'status':1,'msg':'deleted '})
+         try:
+            userName = job_param['userName']
+            cron = CronTab(user=userName)   
+            job_uuid=job_param['job_uuid']               
+            jobuuids=job_uuid.split(',')
+            for jobuuid in jobuuids:    #delete more
+                mongoOps.db().healthJobs.remove({'job_uuid':jobuuid})
+                mongoOps.db().healthJobDetails.remove({'job_uuid':jobuuid})
+                mongoOps.db().healthJobRunResult.remove({'job_uuid':jobuuid})
+                jobs=cron.find_command(jobuuid)#findajob which to be deleted if run immediately not do
+                for job in jobs:
+                    cron.remove(job)
+                    cron.write(user=userName)
+            self.write({'status':1,'msg':'deleted '})
+         except Exception as e:
+            self.write({'status':0,'msg':str(e)})
          self.finish()
 
 

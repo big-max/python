@@ -55,7 +55,8 @@ class ConfigJobHandler(tornado.web.RequestHandler):
          confComp_if_daily=confComp_param['confComp_if_daily']
          confComp_runType = confComp_param['confComp_runType']
          confComp_groupOrIP = confComp_param['confComp_groupOrIP']
-         retVal = self.run(confComp_uuid,confComp_type,confComp_target,confComp_Submitedby,confComp_scheduled_at,confComp_lastrun_at,confComp_if_daily,confComp_groupOrIP)   
+         confComp_userName=confComp_param['userName']
+         retVal = self.run(confComp_uuid,confComp_type,confComp_target,confComp_Submitedby,confComp_scheduled_at,confComp_lastrun_at,confComp_if_daily,confComp_groupOrIP,confComp_userName)   
          if retVal == True:
             self.write({'status':1,'msg':'success'})
             self.finish()
@@ -63,7 +64,7 @@ class ConfigJobHandler(tornado.web.RequestHandler):
             self.write({'status':0,'msg':retVal})
             self.finish()
                  
-     def run(self,jobuuid,jobType,jobTarget,jobSubmitedby,jobScheduleAt,job_lastrun_at,job_if_daily,job_groupOrIP):        
+     def run(self,jobuuid,jobType,jobTarget,jobSubmitedby,jobScheduleAt,job_lastrun_at,job_if_daily,job_groupOrIP,userName):        
          jobout={}
          jobout['confComp_uuid']=jobuuid
          jobout['confComp_type']=jobType
@@ -91,7 +92,7 @@ class ConfigJobHandler(tornado.web.RequestHandler):
             mongoOps.db().confCompJobs.insert(jobout)
             mongoOps.db().confCompJobDetails.insert(jobDetailOut)
             if job_if_daily == '0' or job_if_daily == '2':
-               tasks.configCompare_run_playbook.apply_async(args=[jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'cc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt],queue='queue_configCompare_run_playbook')     
+               tasks.configCompare_run_playbook.apply_async(args=[jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'cc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt,userName],queue='queue_configCompare_run_playbook')     
          except Exception as e:
             raise e
             return "error"
@@ -110,18 +111,22 @@ class ConfigJobHandler(tornado.web.RequestHandler):
        self.finish()
     
      def deleteJob(self,job_param):
-         cron = CronTab(user='root')
-         job_uuid=job_param['job_uuid']
-         jobuuids=job_uuid.split(',')
-         for jobuuid in jobuuids:    #delete more
-             mongoOps.db().confCompJobs.remove({'confComp_uuid':jobuuid})
-             mongoOps.db().confCompJobDetails.remove({'confComp_uuid':jobuuid})
-             mongoOps.db().confCompRunResult.remove({'confComp_uuid':jobuuid})
-             jobs=cron.find_command(jobuuid)  #find a job which to be deleted if run immediately not do
-             for job in jobs:
-                 cron.remove(job)
-             cron.write(user='root')
-         self.write({'status':1,'msg':'deleted '})
+         try:
+            userName = job_param['userName']
+            cron = CronTab(user=userName)
+            job_uuid=job_param['job_uuid']
+            jobuuids=job_uuid.split(',')
+            for jobuuid in jobuuids:    #delete more
+                mongoOps.db().confCompJobs.remove({'confComp_uuid':jobuuid})
+                mongoOps.db().confCompJobDetails.remove({'confComp_uuid':jobuuid})
+                mongoOps.db().confCompRunResult.remove({'confComp_uuid':jobuuid})
+                jobs=cron.find_command(jobuuid)#finda job which to be deleted if run immediately not do
+                for job in jobs:
+                    cron.remove(job)
+                    cron.write(user=userName)
+            self.write({'status':1,'msg':'deleted '})
+         except Exception as e:
+            self.write({'status':0,'msg':str(e)})
          self.finish()         
 
      @tornado.web.asynchronous

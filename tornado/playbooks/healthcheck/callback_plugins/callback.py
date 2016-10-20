@@ -128,6 +128,7 @@ class CallbackModule(CallbackBase):
            self.db().healthJobRunResult.update({'healthJobsRunResult_uuid':str(runResult_uuid)},{'$set':{'healthJobsRunResult_errmsg':str(result._result['msg'])}})    #run failed need status 2 need errmsg 
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
+      if ignore_errors == False:
         err_host = str(result._host)
         uuid1=uuid.uuid1()
         errmsg=''
