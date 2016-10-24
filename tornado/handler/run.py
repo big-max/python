@@ -156,7 +156,7 @@ class runHandler(tornado.web.RequestHandler):
             log().info('开始创建playbook json文件')
             jsonpath=get_conf('tornado','json_path')
             currentTime=datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-            fileDir=jsonpath+playbookname+'/'+currentTime
+            fileDir=jsonpath+"/deploy/"+playbookname+'/'+currentTime
             try:
                #os.mkdir(fileDir) 
                os.makedirs(fileDir) 

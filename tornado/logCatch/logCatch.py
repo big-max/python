@@ -31,6 +31,7 @@ class logCatchHandler(tornado.web.RequestHandler):
 
       @tornado.web.asynchronous
       def post(self):
+          print self.request.body
           proj_log.log().info(self.request.body)
           body=json.loads(self.request.body)
           ip=body['ip']
@@ -46,6 +47,7 @@ class logCatchHandler(tornado.web.RequestHandler):
           job['instance']=instance 
           uuid1=str(uuid.uuid1())
           job['_id']=uuid1
+          print job
           mongoOps.db().logCatch.insert(job)
           tasks.logCatch_run_playbook.apply_async(args=[uuid1,ip,product,instance,task_timestamp],queue='queue_logCatch_run_playbook')
           self.write({'status':1,'msg':'success'})
