@@ -76,7 +76,7 @@ class JobHandler(tornado.web.RequestHandler):
             if job_if_daily == '1':
                target_datetime=jobScheduleAt+":00"       
                betweenSeconds=self.calTime(target_datetime) 
-               tasks.healthCheck_run_playbook.apply_async((jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'hc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt),countdown=betweenSeconds)
+               tasks.healthCheck_run_playbook.apply_async((jobuuid,str(jobDetail_uuid),_jobTarget,jobType.lower()+'hc',self.convertScheduledatDate(jobScheduleAt),job_if_daily,jobScheduleAt,userName),countdown=betweenSeconds)
  
          except Exception as e:
             raise e 
