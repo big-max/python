@@ -1,0 +1,15 @@
+---
+#This playbook is used to retrieve the basic OS information such as CPU, RAM and so on
+- name: Configure ansible inventory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Add hosts to the group named target_hosts
+      add_host: >
+         name="{{ item.0 }}" groups=target_hosts ansible_host="{{ item.0 }}" ansible_user="{{ item.1 }}"  ansible_pass="{{ item.2 }}"
+      with_together: 
+         - "{{ ip_list }}"
+         - "{{ user_list }}"
+         - "{{ password_list }}"
+    - name: run ansible
+      setup:  

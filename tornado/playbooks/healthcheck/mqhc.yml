@@ -21,16 +21,16 @@
     - name: retrieve os summary health check data
       mod_OS_Healthcheck:
     - name: retrieve os detail health check data
-      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ date }}{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      fetch: src=/tmp/oshc_detail.out dest=/var/log/itoa/scripts/healthcheck/oshc/{{ date }}{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
       when: job_if_daily == '2'
     - name: retrieve os detail health check data
-      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      fetch: src=/tmp/oshc_detail.out dest=/var/log/itoa/scripts/healthcheck/oshc/{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
       when: job_if_daily != '2'
     - name: retrieve mq summary health check data
       mod_MQ_Healthcheck:
     - name: retrieve mq detail health check data
-      fetch: src=/tmp/mqhc_detail.out dest=/scripts/healthcheck/mqhc/{{ date }}{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
+      fetch: src=/tmp/mqhc_detail.out dest=/var/log/itoa/scripts/healthcheck/mqhc/{{ date }}{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
       when: job_if_daily == '2'
     - name: retrieve mq detail health check data
-      fetch: src=/tmp/mqhc_detail.out dest=/scripts/healthcheck/mqhc/{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
+      fetch: src=/tmp/mqhc_detail.out dest=/var/log/itoa/scripts/healthcheck/mqhc/{{ task_timestamp }}/mqhc-{{ inventory_hostname }} flat=yes
       when: job_if_daily != '2'

@@ -18,10 +18,10 @@
   tags:
     - install
   tasks:
-    - name: Update the hostname of target servers
+    - name: Update the hostname of target servers is not aix
       hostname: name="{{ inventory_hostname }}"
       when: ansible_distribution != 'AIX'
-    - name: Update the hostname of target servers for AIX
+    - name: Update the hostname of target servers is aix
       mod_chhostname: name="{{ inventory_hostname }}"
       when: ansible_distribution == 'AIX'
     - name: Add hostname to the file /etc/hosts
@@ -66,9 +66,9 @@
          when: mq_fp != '-'
       when: ansible_distribution != 'AIX' 
     - block:
-       - name: Install MQ binary for AIX
-         shell: installp -acgXYd . all chdir="{{ downloadpath }}/{{ mq_version }}/"
-       - name: Install MQ fixpack for AIX
+       - name: Install MQ binary
+         shell: installp -acgXYd . all chdir="{{ downloadpath }}/{{ mq_version }}/MQServer"
+       - name: Install MQ fixpack
          shell: installp -acgXYd . all chdir="{{ downloadpath }}/{{ mq_version }}/fp"
          when: mq_fp != '-'
       when: ansible_distribution == 'AIX'
@@ -83,7 +83,7 @@
 
 - name: Build Environment
   hosts: target_hosts
-  gather_facts: True
+  gather_facts: false
   strategy: linear
   tags:
     - build
@@ -97,18 +97,14 @@
       become_user: "{{ mq_user }}"
       become: yes
       become_method: su
-      when: mq_qmgr_name != '-' and ansible_distribution != 'AIX'
     - name: Create Queue Managers instance
       shell: >
         /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/crtmqm -md {{ mq_data_path }} -ld {{ mq_log_path }} -lc -lf {{ mq_log_psize }}
         -lp {{ mq_qmgr_plog }} -ls {{ mq_qmgr_slog }}  {{ mq_qmgr_name }}"
-      when: mq_qmgr_name != '-'
     - name: Append one blank line to qmini file
       shell: /bin/su - "mqm" -c "echo ' ' >> {{ mq_data_path }}/{{ mq_qmgr_name }}/qm.ini"
-      when: mq_qmgr_name != '-'
     - name: Start up Queue Manager instance
       command: /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/strmqm {{ mq_qmgr_name }}"
-      when: mq_qmgr_name != '-'
     - name: Configure Queue Manager ini file
       blockinfile:
         dest: "{{ mq_data_path }}/{{ mq_qmgr_name }}/qm.ini"
@@ -122,12 +118,10 @@
       become_user: "mqm"
       become: yes
       become_method: su
-      when: mq_qmgr_name != '-' and ansible_distribution != 'AIX'
     - name: Create Queue Manager Objects
-      shell: /bin/su - "mqm" -c "echo '{{ item }}' | {{ mq_inst_path }}/bin/runmqsc {{ mq_qmgr_name }}"
+      shell: /bin/su - "mqm" -c "echo '{{ item }}' | runmqsc {{ mq_qmgr_name }}"
       with_items:
         - "DEF LSTR(LISTENER01) TRPTYPE(TCP) PORT({{ mq_lstr_port }}) CONTROL(QMGR) REPLACE"
-      when: mq_qmgr_name != '-'
 
 - name: Restart Environment
   hosts: target_hosts
@@ -138,12 +132,9 @@
   environment:
     PATH: "{{ mq_inst_path }}/bin"
   tasks:
-    - block:
-       - name: stop QMGRs
-         command: /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/endmqm -i {{ mq_qmgr_name }}"
-         register: result
-         when: mq_qmgr_name != '-'
-       - name: start QMGRs
-         command: /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/strmqm {{ mq_qmgr_name }}"
-         when: result.rc == 0
-      when: mq_qmgr_name != '-'
+    - name: stop QMGRs
+      command: /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/endmqm -i {{ mq_qmgr_name }}"
+      register: result
+    - name: start QMGRs
+      command: /bin/su - "mqm" -c "{{ mq_inst_path }}/bin/strmqm {{ mq_qmgr_name }}"
+      when: result.rc == 0

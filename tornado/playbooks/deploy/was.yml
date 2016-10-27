@@ -53,7 +53,7 @@
         dest: "{{ downloadpath }}/{{ was_version }}/im"
         timeout: 100    
     - name: Uncompress IM files
-      shell: unzip -o  "{{ downloadpath }}/{{ was_version }}/im/{{ was_im }}"   
+      shell: unzip -o "{{ downloadpath }}/{{ was_version }}/im/{{ was_im }}" -d "{{ downloadpath }}/{{ was_version }}/im"
     - name: Download WAS binary files
       get_url: 
         url: "ftp://{{ ftp_user }}:{{ ftp_password }}@{{ ftp_server }}/was/{{ was_version }}/{{ item | basename }}"
@@ -69,65 +69,59 @@
         dest: "{{ downloadpath }}/{{ was_version }}/fp"
         timeout: 100
       with_fileglob:
-        - "{{ softpath }}/{{ was_version }}/fp/{{ was_fp }}"
+        - "{{ softpath }}/{{ was_version }}/{{ was_fp }}"
       when: was_fp != '-' 
     - name: Uncompress WAS fixpack files
-      shell: unzip -o "{{ downloadpath }}/{{ was_version }}/fp/{{ was_fp }}" -d "{{ downloadpath }}/{{ was_version }}"
+      shell: unzip -o "{{ downloadpath }}/{{ was_version }}/fp/{{ was_fp }}" -d "{{ downloadpath }}/{{ was_version }}/fp"
       when: was_fp != '-'
     - name: Install IM binary with non root user
-      become_user: "{{ was_user }}"
-      become: yes
-      become_method: su
-      shell: ./userinstc -acceptLicense chdir="{{ downloadpath }}/{{ was_version }}/im"
+      shell: su - "{{ was_user }}" -c "{{ downloadpath }}/{{ was_version }}/im/userinstc -acceptLicense"
       when: was_user != 'root'
     - name: Install IM binary with root user
-      shell: ./installc -acceptLicense chdir="{{ downloadpath }}/{{ was_version }}/im"
+      shell: "{{ downloadpath }}/{{ was_version }}/im/installc -acceptLicense"
       when: was_user == 'root' 
-    - block: 
-       - name: Install WAS binary pretask1
-         lineinfile: >
-            dest="{{ was_im_path }}/eclipse/configuration/config.ini" regexp='disableOSPrereqChecking'  line="disableOSPrereqChecking=true"
-            state=present backup=yes create=yes
-       - name: Install WAS binary pretask2
-         shell: "{{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }}"
-         register: package
-       - name: Install WAS binary
-         shell: >
-           {{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ was_inst_path }}
-           -repositories {{ downloadpath }}/{{ was_version }} -acceptLicense creates={{ was_inst_path }}/logs/postinstall/postinstall.log
-       - name: Install WAS fixpack pretask1  
-         shell: >
-           {{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }}/fp | grep 'ND.v'
-         register: package
-         when: was_fp != '-'
-       - name: Install WAS fixpack if required
-         shell: >
-           {{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ was_inst_path }}
-           -repositories {{ downloadpath }}/{{ was_version }}/fp -acceptLicense
-         when: was_fp != '-'
-      become: yes
-      become_user: "{{ was_user }}"
-      become_method: su
+    - name: Install WAS binary pretask2
+      shell: >
+        su - "{{ was_user }}" -c 
+        "{{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }} | grep 'ND.v'"
+      register: package
+    - name: Install WAS binary
+      shell: >
+        su - "{{ was_user }}" -c
+        "{{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ was_inst_path }}
+        -properties cic.selector.nl=zh 
+        -repositories {{ downloadpath }}/{{ was_version }} -acceptLicense"
+    - name: Install WAS fixpack pretask1  
+      shell: >
+        su - "{{ was_user }}" -c
+        "{{ was_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ was_version }}/fp | grep 'ND.v'"
+      register: package
+      when: was_fp != '-'
+    - name: Install WAS fixpack if required
+      shell: >
+        su - "{{ was_user }}" -c "{{ was_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ was_inst_path }}
+        -repositories {{ downloadpath }}/{{ was_version }}/fp -acceptLicense"
+      when: was_fp != '-'
          
 - name: Build Environment
   hosts: target_hosts
   gather_facts: false
-  become_user: "{{ was_user }}"
-  become: yes
-  become_method: su
   strategy: linear
   tags:
     - build
   tasks:
     - name: create WAS profiles with default profile
       shell: >
-        {{ was_inst_path }}/bin/manageprofiles.sh -create -profileName {{ was_profile_name }} -profilePath {{ was_profile_path }}/{{ was_profile_name}}
+        su - "{{ was_user }}" -c 
+        "{{ was_inst_path }}/bin/manageprofiles.sh -create -profileName {{ was_profile_name }} -profilePath {{ was_profile_path }}/{{ was_profile_name}}
         -templatePath {{ was_inst_path }}/profileTemplates/{{ was_profile_type }} -hostName localhost
-        -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
+        -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}"
       when: was_profile_type == 'default'
     - name: create WAS profiles with cell profile
       shell: >
-        {{ was_inst_path }}/bin/manageprofiles.sh -create -profileName Dmgr01 -profilePath {{ was_profile_path }}/Dmgr01
+        su - "{{ was_user }}" -c
+        "{{ was_inst_path }}/bin/manageprofiles.sh -create -profileName Dmgr01 -profilePath {{ was_profile_path }}/Dmgr01
         -templatePath {{ was_inst_path }}/profileTemplates/cell/dmgr -hostName localhost
         -nodeProfilePath {{ was_profile_path }}/{{ was_profile_name}}
         -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
@@ -138,22 +132,20 @@
         -portsFile {{ was_profile_path }}/Dmgr01/properties/portdef.props
         -nodePortsFile {{ was_profile_path }}/Dmgr01/properties/nodeportdef.props
         -enableAdminSecurity true -adminUserName {{ was_userid }} -adminPassword {{ was_password }}
-        -cellName Default01Cell -nodeName Default01Node -appServerNodeName Default02Node
+        -cellName Default01Cell -nodeName Default01Node -appServerNodeName Default02Node"
+      ignore_errors: true
       when: was_profile_type == 'cell'
                                          
 - name: Restart Environment
   hosts: target_hosts
   gather_facts: false
-  become_user: "{{ was_user }}"
-  become: yes
-  become_method: su
   strategy: linear
   tags:
     - restart
   tasks:  
     - name: start WAS profile with default profile
-      shell: ./startServer.sh server1 chdir={{ was_profile_path }}/{{ was_profile_name }}/bin
+      shell: su - "{{ was_user }}" -c "{{ was_profile_path }}/{{ was_profile_name }}/bin/startServer.sh server1"
       when: was_profile_type == 'default'
     - name: start WAS profile with cell profile
-      shell: "{{ was_profile_path }}/Dmgr01/bin/startManager.sh;{{ was_profile_path }}/{{ was_profile_name }}/bin/startNode.sh"
+      shell: su - "{{ was_user }}" -c "{{ was_profile_path }}/Dmgr01/bin/startManager.sh;{{ was_profile_path }}/{{ was_profile_name }}/bin/startNode.sh"
       when: was_profile_type == 'cell'

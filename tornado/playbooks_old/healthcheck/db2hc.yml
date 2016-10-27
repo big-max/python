@@ -1,0 +1,34 @@
+﻿---
+- name: Have health check for DB2 servers
+  hosts: all
+  gather_facts: false
+  strategy: linear
+  vars:
+      date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
+  tasks:
+    - name: check if python module psutil exists
+      command: python -c "import psutil"
+      register: check_output
+      ignore_errors: true
+    - name: copy python module to target system
+      unarchive: src=/opt/tornado/tools/psutil-4.3.0.tar.gz dest=/tmp copy=yes
+      when: check_output.stderr.find('ImportError') != -1
+    - name: install python module
+      command: python setup.py install chdir=/tmp/psutil-4.3.0
+      when: check_output.stderr.find('ImportError') != -1
+    - name: retrieve os summary health check data
+      mod_OS_Healthcheck:
+    - name: retrieve os detail health check data
+      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ date }}{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily == '2'
+    - name: retrieve os detail health check data
+      fetch: src=/tmp/oshc_detail.out dest=/scripts/healthcheck/oshc/{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily != '2'
+    - name: retrieve db2 summary health check data
+      mod_DB2_Healthcheck:
+    - name: retrieve db2 detail health check data
+      fetch: src=/tmp/db2check/db2hc_detail.out dest=/scripts/healthcheck/db2hc/{{ date }}{{ task_timestamp }}/db2hc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily == '2'
+    - name: retrieve db2 detail health check data
+      fetch: src=/tmp/db2check/db2hc_detail.out dest=/scripts/healthcheck/db2hc/{{ task_timestamp }}/db2hc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily != '2'

@@ -1,8 +1,8 @@
 ---
-- name: Have health check for operating system
+- name: Have health check for WAS servers
   hosts: all
   gather_facts: false
-  strategy: linear
+  strategy: debug
   vars:
       date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
   tasks:
@@ -24,4 +24,11 @@
     - name: retrieve os detail health check data
       fetch: src=/tmp/oshc_detail.out dest=/var/log/itoa/scripts/healthcheck/oshc/{{ task_timestamp }}/oshc-{{ inventory_hostname }} flat=yes
       when: job_if_daily != '2'
-                      
+    - name: retrieve was summary health check data
+      mod_WAS_Healthcheck:
+    - name: retrieve was detail health check data
+      fetch: src=/tmp/washc_detail.out dest=/var/log/itoa/scripts/healthcheck/washc/{{ date }}{{ task_timestamp }}/washc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily == '2'
+    - name: retrieve was detail health check data
+      fetch: src=/tmp/washc_detail.out dest=/var/log/itoa/scripts/healthcheck/washc/{{ task_timestamp }}/washc-{{ inventory_hostname }} flat=yes
+      when: job_if_daily != '2'

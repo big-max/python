@@ -1,0 +1,33 @@
+---
+#This playbook is used to retrieve the basic OS information such as CPU, RAM and so on
+- name: Configure ansible inventory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Add hosts to the group named target_hosts
+      add_host: >
+         name="{{ item.0 }}" groups=target_hosts ansible_host="{{ item.0 }}" ansible_user="{{ item.1 }}"  ansible_pass="{{ item.2 }}"
+      with_together: 
+         - "{{ ip_list }}"
+         - "{{ user_list }}"
+         - "{{ password_list }}"
+
+- name: Retrieve the specific OS informataion
+  hosts: target_hosts
+  gather_facts: true
+  strategy: free
+  tags:
+    - retrieve
+  tasks:
+    - set_fact:
+         HConf="{{ ansible_processor_cores }}C/{{ ansible_memtotal_mb }}MB"
+         Name="{{ ansible_nodename }}"
+    - set_fact:
+         OS="{{ ansible_distribution }} {{ ansible_distribution_version }}.{{ ansible_distribution_release }}"
+         HVisor="{{ ansible_processor }}"
+      when: ansible_distribution == 'AIX'
+    - set_fact:
+         OS="{{ ansible_distribution }} {{ ansible_distribution_version }}"
+         HVisor="{{ ansible_virtualization_type }}"
+      when: ansible_distribution in ['RedHat', 'CentOS', 'Ubuntu', 'Suse']
+    - local_action: template src=/etc/ansible/OS_Setup.j2 dest=/etc/ansible/OS_Setup.j2.out mode=0644

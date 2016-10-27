@@ -1,0 +1,137 @@
+# ****************************************************************************
+# * Licensed Materials - Property of IBM
+# * 
+# * OCO Source Materials - IBM Confidential
+# * 5724-C04
+# *
+# * Copyright IBM Corporation 2007-2011 All Rights Reserved
+# *
+# * The source code for this program is not published or other-
+# * wise divested of its trade secrets, irrespective of what has
+# * been deposited with the U.S. Copyright Office.
+# *****************************************************************************
+
+# This is a sample silent installation response file
+
+# To install using this silent response file:
+#   1) copy this file to another location and modify the necessary parameters
+#   2) run "install.sh -q -h <candlehome> -p <silent_response_file>"
+#      - give an absolute path for the silent_response_file
+
+# Syntax rules:
+# - Comment lines begin with "#"
+# - Blank lines are ignored
+# - Parameter lines are PARAMETER=value (do not put space before the PARAMETER)
+# - Space before or after an equal sign is OK
+# - Parameter values should NOT contain the following characters $, =, or |
+
+# After installation most products will need to be configured before
+# use.  You can configure them using:
+#   1) the Manage Tivoli Enterprise Monitoring Services user interface
+#   2) the itmcmd config command line utility
+#   3) the itmcmd config silent config option
+# For information on using the silent config option look in the samples
+# directory under the install location
+
+# Data encryption key used for encrypting data sent between systems.
+# This key must be the same for all installations in an ITM environment.
+# The key is required and must be exactly 32 characters long.
+# If a parameter is left empty, the default encryption key is used.
+# Do not use the following characters in the key: $, =, or |
+#                      ....+....1....+....2....+....3..
+INSTALL_ENCRYPTION_KEY=IBMTivoliMonitoringEncryptionKey
+
+# The platform for which products should be installed.
+# Refer to the install documentation for a full list of available platform codes.
+# If left commented out, the install will use the platform of the machine
+# on which the install is performed.
+#INSTALL_FOR_PLATFORM=aix536
+
+# The product codes of the products to be installed.
+# This parameter can be given once for each product to install or
+# specifying 'all' will install all products for the given platform.
+# NOTE: Some products are not supported on some platforms.  Use the
+#       command line installer to determine what products are available
+#       on the platform.
+#
+# Install Tivoli Enterprise Portal Desktop Client
+#INSTALL_PRODUCT=cj
+#
+# Install Tivoli Enterprise Portal Server
+#INSTALL_PRODUCT=cq
+#
+# Install Warehouse Proxy
+#INSTALL_PRODUCT=hd
+#
+# Install Tivoli Enterprise Monitoring Server
+#INSTALL_PRODUCT=ms
+#
+# Install Tivoli Enterprise Monitoring Automation Server
+# It requires Tivoli Enterprise Monitoring Server
+#INSTALL_PRODUCT=as
+#
+# Install Summarization and Pruning Agent
+#INSTALL_PRODUCT=sy
+#
+# Install Tivoli Performance Analyzer Agent
+#INSTALL_PRODUCT=pa
+#
+# Install all products
+INSTALL_PRODUCT=ux
+
+# Support installation can be done simultaneously with components 
+# installation using these parameters
+#
+# Install Tivoli Enterprise Monitoring Server support
+#INSTALL_PRODUCT_TMS=all
+#
+# Install Tivoli Enterprise Portal Server support
+#INSTALL_PRODUCT_TPS=all
+#
+# Install Tivoli Enterprise Portal Browser Client support
+#INSTALL_PRODUCT_TPW=all
+#
+# Install Tivoli Enterprise Portal Desktop Client support
+#INSTALL_PRODUCT_TPD=all
+#
+# Install Tivoli Performance Analyzer Domain support
+#INSTALL_PRODUCT_TPA=all
+
+# If installing the Tivoli Enterprise Monitoring Server (INSTALL_PRODUCT=ms), 
+# provide a name for the server.  
+# If upgrading the Tivoli Enterprise Monitoring Server (INSTALL_PRODUCT=ms), 
+# an installed server name should be provided. If a new server name is provided
+# for upgrade, a new server will be created, rather than upgrading any installed
+# server.
+# This serves as a label to identify the server and should not be an IP
+# address or hostname.
+#MS_CMS_NAME=TEMS
+
+# If Tivoli Enterprise Monitoring Server is installed and during this installation, 
+# Tivoli Enterprise Monitoring Server support was selected to install
+# installer can seed this support on monitoring server. 
+# If value is set to YES (SEED_TEMS_SUPPORTS=YES) support will be seeded,
+# when set to NO or value not provided, no support will be seeded on monitoring server.
+#SEED_TEMS_SUPPORTS=YES
+
+# If seed support on Tivoli Enterprise Monitoring Server selected (SEED_TEMS_SUPPORTS=YES)
+#
+# This parameter is only supported for Tivoli Enterprise Monitoring Server configured as hub monitoring server
+#
+# Select Tivoli Enterprise Monitoring Server product support for which default distribution list will be upgraded:
+# NEW - This option adds the default managed system groups to all applicable situations from the product support packages 
+# that are being seeded for the first time. Note that not all situations have the default managed group setting. 
+# For some, you might need to manually define the distribution in the Tivoli Enterprise Portal due to the specific content of the agent support package. 
+# Modifications are not made to managed system groups in upgraded product support packages.
+# ALL - This option adds the default managed system groups to all the applicable situations. Note that not all situations have 
+# the default managed group setting. For some, you might need to manually define the distribution in the Tivoli Enterprise Portal 
+# due to the specific content of the agent support package.
+# NONE - The default managed system group is not added to any situation.
+# When no value provided default (NEW) will be selected as default.
+#DEFAULT_DISTRIBUTION_LIST=NEW
+
+# Before seeding Tivoli Enterprise Monitoring Server with agent-specific support, the TAPPLPROPS table is checked to see 
+# if the product was already seeded by a self-describing agent install.  If the product was already seeded by a 
+# self-describing agent install, seeding is not performed for the agent.
+# Setting SKIP_SDA_CHECK parameter to 'YES' will cause the self-describing agent seeding status check to be skipped. This forces agent seeding to occur.
+#SKIP_SDA_CHECK=NO

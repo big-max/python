@@ -114,10 +114,7 @@ class CallbackModule(CallbackBase):
 
     def v2_runner_on_ok(self, result):
         self.res=result
-        if result.is_changed():
-           self.UpdateLog(self.res,self.playbookuuid,'ok')
-        else:
-       	   self.UpdateLog(self.res,self.playbookuuid, 'ok')
+        self.UpdateLog(self.res,self.playbookuuid,'ok')
 		
 
     def v2_runner_on_unreachable(self, result):
@@ -125,8 +122,15 @@ class CallbackModule(CallbackBase):
         self.UpdateLog(self.res,self.playbookuuid, 'unreachable')
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
-        self.res = result
-        self.UpdateLog(self.res,self.playbookuuid, 'failed')
+        self.res=result
+        
+        if ignore_errors == False:
+           self.UpdateLog(self.res,self.playbookuuid, 'failed',False)
+        elif ignore_errors == True:
+           self.UpdateLog(self.res,self.playbookuuid, 'ok',True)
+        elif ignore_errors == None:
+           self.UpdateLog(self.res,self.playbookuuid, 'failed',False)
+        
 		
     def v2_runner_on_skipped(self, result):
         self.res=result
@@ -144,12 +148,11 @@ class CallbackModule(CallbackBase):
                 i = i+1
         return dict
 
-    def UpdateLog(self,values , playbook_uuid, status, type=None):	
+    def UpdateLog(self,values , playbook_uuid, status, ignore_errors=False):	
 	now = time.time()
-	if status == 'started' or str(self.task) == 'TASK: setup':
-           pass
-	#   currenttaskname = str(values._task.get_name())
-	#   self.db().tasks.update({"playbook_uuid":playbook_uuid, "name":currenttaskname},{'$set':{"status":statuscode.get(status), "updated_at":now}},upsert=False,multi=False)
+	if status == 'started':
+	   currenttaskname = str(values._task.get_name())
+	   self.db().tasks.update({"playbook_uuid":playbook_uuid, "name":currenttaskname},{'$set':{"status":statuscode.get(status), "updated_at":now}},upsert=False,multi=False)
 	else:
 	   hostsdict=dict(zip(self.task.get_variable_manager().extra_vars['hostname_list'],self.task.get_variable_manager().extra_vars['ip_list']))
            if self.errip:
@@ -163,14 +166,18 @@ class CallbackModule(CallbackBase):
 	      host=str(hostsdict[values._host.get_name()]) 
 	   self.db().tasks.update({"playbook_uuid":playbook_uuid, "host":host, "name":self.task.get_name()},{'$set':{"status":statuscode.get(status),"updated_at":now}})
            if status == 'failed' or status == 'unreachable':
-              self.errip=host     #  where ip has error ,save to errip
-              self.completed_task = self.completed_task + 1
-              if values._result.has_key('msg'):
-                self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'msg':values._result['msg']}})
-              if values._result.has_key('stderr'):
-                self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'stderr':values._result['stderr']}})
-              if values._result.has_key('stdout'):
-                self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'stdout':values._result['stdout']}})
+              if ignore_errors==False:
+                 self.errip=host     #  where ip has error ,save to errip
+                 self.completed_task = self.completed_task + 1
+                 if values._result.has_key('msg'):
+                    self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'msg':values._result['msg']}})
+                 if values._result.has_key('stderr'):
+                    self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'stderr':values._result['stderr']}})
+                 if values._result.has_key('stdout'):
+                    self.db().playbooks.update({'uuid':playbook_uuid},{'$set':{'stdout':values._result['stdout']}})
+              else:
+                  self.completed_task = self.completed_task + 1
+                  self.db().playbooks.update({"uuid":playbook_uuid},{'$set':{"completed":self.completed_task, "updated_at":now}})  
            elif status == 'ok' or status == 'skipped':
 	      self.completed_task = self.completed_task + 1
 	      self.db().playbooks.update({"uuid":playbook_uuid},{'$set':{"completed":self.completed_task, "updated_at":now}})

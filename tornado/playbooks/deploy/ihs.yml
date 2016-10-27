@@ -71,99 +71,95 @@
       shell: unzip -o "{{ downloadpath }}/{{ ihs_version }}/fp/{{ ihs_fp }}" -d "{{ downloadpath }}/{{ ihs_version }}/fp"
       when: ihs_fp != '-'
     - name: Install IM binary with non root user
-      become_user: "{{ ihs_user }}"
-      become: yes
-      become_method: su
-      shell: "{{ downloadpath }}/{{ ihs_version }}/im/userinstc -acceptLicense"
+      shell: su - "{{ ihs_user }}" -c "{{ downloadpath }}/{{ ihs_version }}/im/userinstc -acceptLicense"
       when: ihs_user != 'root'
     - name: Install IM binary with root user
       shell: "{{ downloadpath }}/{{ ihs_version }}/im/installc -acceptLicense"
       when: ihs_user == 'root' 
-    - block:
-      - name: Install IHS binary pretask1
-        lineinfile: >
-          dest="{{ ihs_im_path }}/eclipse/configuration/config.ini" regexp='disableOSPrereqChecking'  line="disableOSPrereqChecking=true"
-          state=present backup=yes create=yes
-      - name: Install IHS binary pretask2
-        shell: "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }} | grep 'IHS'"
-        register: package
-      - name: Install IHS binary with non root user
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ ihs_inst_path }}
-          -repositories {{ downloadpath }}/{{ ihs_version }} 
-          -properties "user.ihs.allowNonRootSilentInstall=true,user.ihs.httpPort=8080"
-          -acceptLicense
-        when: ihs_user != 'root' 
-      - name: Install IHS binary with root user
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ ihs_inst_path }}
-          -repositories {{ downloadpath }}/{{ ihs_version }} 
-          -properties "user.ihs.httpPort=80"
-          -acceptLicense
-        when: ihs_user == 'root' 
-      - name: Install WebSphere Plugin binary pretask
-        shell: "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }} | grep 'PLG'"
-        register: package
-      - name: Install WebSphere Plugin binary
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ ihs_plg_path }}
-          -repositories {{ downloadpath }}/{{ ihs_version }}
-          -acceptLicense
-      - name: Install IHS fixpack pretask
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }}/fp | grep 'IHS' | grep -v 'ILAN'
-        register: package
+    - name: Install IHS binary pretask2
+      shell: su - "{{ ihs_user }}" -c "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }} | grep 'IHS'"
+      register: package
+    - name: Install IHS binary with non root user
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ ihs_inst_path }}
+        -repositories {{ downloadpath }}/{{ ihs_version }} 
+        -properties 'user.ihs.allowNonRootSilentInstall=true,user.ihs.httpPort=8080'
+        -acceptLicense"
+      when: ihs_user != 'root' 
+    - name: Install IHS binary with root user
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ ihs_inst_path }}
+        -repositories {{ downloadpath }}/{{ ihs_version }} 
+        -properties 'user.ihs.httpPort=80'
+        -acceptLicense"
+      when: ihs_user == 'root' 
+    - name: Install WebSphere Plugin binary pretask
+      shell: su - "{{ ihs_user }}" -c "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }} | grep 'PLG'"
+      register: package
+    - name: Install WebSphere Plugin binary
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ ihs_plg_path }}
+        -repositories {{ downloadpath }}/{{ ihs_version }}
+        -acceptLicense"
+    - name: Install IHS fixpack pretask
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages 
+        -repositories {{ downloadpath }}/{{ ihs_version }}/fp | grep 'IHS' | grep -v 'ILAN'"
+      register: package
+      when: ihs_fp != '-'
+    - name: Install IHS fixpack if required
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ ihs_inst_path }}
+        -repositories {{ downloadpath }}/{{ ihs_version }}/fp
+        -acceptLicense"
         when: ihs_fp != '-'
-      - name: Install IHS fixpack if required
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ ihs_inst_path }}
-          -repositories {{ downloadpath }}/{{ ihs_version }}/fp
-          -acceptLicense
-        when: ihs_fp != '-'
-      - name: Install WebSphere Plugin fixpack pretask
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages -repositories {{ downloadpath }}/{{ ihs_version }}/fp | grep 'PLG' | grep -v 'ILAN'
-        register: package
-        when: ihs_fp != '-'
-      - name: Install WebSphere Plugin fixpack if required
-        shell: >
-          {{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} -installationDirectory {{ ihs_plg_path }}
-          -repositories {{ downloadpath }}/{{ ihs_version }}/fp
-          -acceptLicense
-        when: ihs_fp != '-'
-      become: yes
-      become_user: "{{ ihs_user }}"
-      become_method: su
-
+    - name: Install WebSphere Plugin fixpack pretask
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl listAvailablePackages 
+        -repositories {{ downloadpath }}/{{ ihs_version }}/fp | grep 'PLG' | grep -v 'ILAN'"
+      register: package
+      when: ihs_fp != '-'
+    - name: Install WebSphere Plugin fixpack if required
+      shell: >
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_im_path }}/eclipse/tools/imcl install {{ package.stdout }} 
+        -installationDirectory {{ ihs_plg_path }}
+        -repositories {{ downloadpath }}/{{ ihs_version }}/fp
+        -acceptLicense"
+      when: ihs_fp != '-'
 
 - name: Build Environment
   hosts: target_hosts
   gather_facts: false
-  become_user: "{{ ihs_user }}"
-  become: yes
-  become_method: su
   strategy: linear
   tags:
     - build
   tasks:
     - name: configure IHS and WebSphere Plugin
       shell: >
-        ./ConfigureIHSPlugin.sh -plugin.home {{ ihs_plg_path }}  
+        su - "{{ ihs_user }}" -c
+        "{{ ihs_plg_path }}/bin/ConfigureIHSPlugin.sh -plugin.home {{ ihs_plg_path }}  
         -plugin.config.xml {{ ihs_plg_path }}/config/webserver1/plugin-cfg.xml 
         -ihs.conf.file {{ ihs_inst_path }}/conf/httpd.conf
         -operating.system.arch 64
-        -operating.system Linux
-        chdir={{ ihs_plg_path }}/bin
+        -operating.system Linux"
 
 - name: Restart Environment
   hosts: target_hosts
   gather_facts: false
-  become_user: "{{ ihs_user }}"
-  become: yes
-  become_method: su
   strategy: linear
   tags:
     - restart
   tasks:
     - name: start IBM HTTP Server
-      shell: ./apachectl start chdir={{ ihs_inst_path }}/bin
+      shell: su - "{{ ihs_user }}" -c "{{ ihs_inst_path }}/bin/apachectl start"

@@ -7,7 +7,7 @@ from pymongo import MongoClient
 from ansible.plugins.callback import CallbackBase
 #coding=utf8
 TIME_FORMAT='%Y-%m-%d %H:%M:%S'
-pro_detail_path='/var/log/itoa/scripts/logcatch/'
+pro_detail_path='/scripts/logcatch/'
 statuscode = {'started':0, 'ongoing':1, 'ok':2,'skipped':4, 'unreachable':3, 'failed':3}
 mongoinfo = {"host":"127.0.0.1","port":"27017","user":"","password":"","dbname":"ams"}
 class CallbackModule(CallbackBase):
